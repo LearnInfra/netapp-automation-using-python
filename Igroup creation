@@ -1,0 +1,15 @@
+from netapp_ontap import HostConnection
+from netapp_ontap.resources import Igroup
+
+with HostConnection("<mgmt-ip>", username="admin", password="password", verify=False):
+    resource = Igroup()
+    resource.svm = {"name": "svm1"}
+    resource.name = "igroup2"
+    resource.os_type = "windows"
+    resource.protocol = "mixed"
+    resource.initiators = [
+        {"name": "20:01:00:50:56:bb:70:72"},
+        {"name": "iqn.1991-05.com.ms:host1"},
+    ]
+    resource.post(hydrate=True)
+    print(resource)
