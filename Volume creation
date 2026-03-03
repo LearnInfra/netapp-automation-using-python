@@ -1,0 +1,10 @@
+from netapp_ontap import HostConnection
+from netapp_ontap.resources import Volume
+
+with HostConnection("<mgmt-ip>", username="admin", password="password", verify=False):
+    resource = Volume()
+    resource.name = "vol1"
+    resource.aggregates = [{"name": "aggr1"}]
+    resource.svm = {"name": "vs1"}
+    resource.post(hydrate=True)
+    print(resource)
