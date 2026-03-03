@@ -1,0 +1,9 @@
+from netapp_ontap import HostConnection
+from netapp_ontap.resources import Snapshot
+
+with HostConnection("<mgmt-ip>", username="admin", password="password", verify=False):
+    resource = Snapshot("{volume.uuid}")
+    resource.name = "snapshot_copy"
+    resource.comment = "Store this copy."
+    resource.post(hydrate=True)
+    print(resource)
