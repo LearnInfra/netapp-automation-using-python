@@ -1,0 +1,8 @@
+import json
+
+from netapp_ontap import HostConnection
+from netapp_ontap.resources import CLI
+
+with HostConnection("<mgmt-ip>", username="admin", password="password", verify=False):
+    response = CLI().execute("vserver services web show")
+    print(json.dumps(response.http_response.json(), indent=4))
