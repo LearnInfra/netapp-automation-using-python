@@ -1,0 +1,10 @@
+from netapp_ontap import HostConnection
+from netapp_ontap.resources import Snapshot
+
+with HostConnection("<mgmt-ip>", username="admin", password="password", verify=False):
+    resource = Snapshot(
+        "0353dc05-405f-11e9-acb6-005056bbc848",
+        uuid="16f7008c-18fd-4a7d-8485-a0e290d9db7f",
+    )
+    resource.name = "snapshot_copy_new"
+    resource.patch()
