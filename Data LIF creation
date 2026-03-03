@@ -1,0 +1,14 @@
+from netapp_ontap import HostConnection
+from netapp_ontap.resources import IpInterface
+
+with HostConnection("<mgmt-ip>", username="admin", password="password", verify=False):
+    resource = IpInterface()
+    resource.name = "Data1"
+    resource.ip = {"address": "10.234.101.116", "netmask": "255.255.240.0"}
+    resource.enabled = True
+    resource.scope = "svm"
+    resource.svm = {"uuid": "137f3618-1e89-11e9-803e-005056a7646a"}
+    resource.location = {"auto_revert": True, "broadcast_domain": {"name": "Default"}}
+    resource.service_policy = {"name": "default-data-files"}
+    resource.post(hydrate=True)
+    print(resource)
