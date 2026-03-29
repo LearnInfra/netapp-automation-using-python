@@ -1,0 +1,53 @@
+import urllib3
+from netapp_ontap import HostConnection, config
+from netapp_ontap.resources import MetroclusterNode, MetroclusterConfig
+
+# Suppress SSL warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+def setup_metrocluster_ip(cluster_a_ip, cluster_b_ip, user, password):
+    """
+    Coordinates the peering and MCC-IP setup between two sites.
+    """
+    # 1. Connect to Cluster A
+    conn_a = HostConnection(cluster_a_ip, username=user, password=password, verify=False)
+    
+    # 2. Connect to Cluster B
+    conn_b = HostConnection(cluster_b_ip, username=user, password=password, verify=False)
+
+    print(f"🔗 Establishing MetroCluster relationship between {cluster_a_ip} and {cluster_b_ip}...")
+
+    # Define the MetroCluster Configuration payload
+    # Note: In a real scenario, you must define the DR pairs for each node
+    mcc_data = {
+        "remote_cluster": {"name": "Site-B-Cluster"},
+        "configuration_type": "ip",
+        "install_type": "automated"
+    }
+
+    try:
+        with conn_a:
+            config.CONNECTION = conn_a
+            mcc_config = MetroclusterConfig.from_dict(mcc_data)
+            # This triggers the 'metrocluster configuration-settings create' equivalent
+            mcc_config.post()
+            print("✅ MetroCluster configuration initiated on Site A.")
+
+        # In MCC, operations are often 'cluster-wide', 
+        # but you should verify the status on both sides.
+        with conn_b:
+            config.CONNECTION = conn_b
+            check_mcc = MetroclusterConfig.get()
+            print(f"📡 Site B Status: {check_mcc.state}")
+
+    except Exception as e:
+        print(f"❌ MetroCluster Setup Failed: {e}")
+
+if __name__ == "__main__":
+    # Example Lab IPs
+    SITE_A = "192.168.1.50"
+    SITE_B = "192.168.1.60"
+    USER = "admin"
+    PASS = "NetApp123"
+
+    setup_metrocluster_ip(SITE_A, SITE_B, USER, PASS)
