@@ -1,0 +1,43 @@
+import urllib3
+from netapp_ontap import HostConnection, config
+from netapp_ontap.resources import SnapmirrorRelationship
+
+# Suppress SSL warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+def reverse_snapmirror_sync(primary_cluster_ip, user, password, original_source_path):
+    """
+    Executes a reverse resync. 
+    Run this on the ORIGINAL PRIMARY cluster to pull data back from DR.
+    """
+    conn = HostConnection(primary_cluster_ip, username=user, password=password, verify=False)
+    config.CONNECTION = conn
+
+    with conn:
+        try:
+            # 1. Find the relationship where the original source is now the target
+            # Format: "svm_primary:vol_primary"
+            relationship = SnapmirrorRelationship.find(destination_path=original_source_path)
+            
+            print(f"🔄 Reversing relationship for: {original_source_path}")
+
+            # 2. Execute the Reverse Resync
+            # This makes the original source volume the new 'destination'
+            # and starts syncing data FROM the DR site TO the Primary site.
+            relationship.patch(state="mirrored")
+            
+            print(f"✅ Reverse Sync initiated. Primary is now pulling from DR.")
+
+        except Exception as e:
+            print(f"❌ Failed to reverse relationship: {e}")
+
+if __name__ == "__main__":
+    # The Original Primary Cluster IP
+    PRIMARY_IP = "192.168.1.50"
+    USER = "admin"
+    PASS = "NetApp123"
+    
+    # The original production volume that we want to update
+    ORIGINAL_PROD_VOL = "vs_prod:vol_finance"
+
+    reverse_snapmirror_sync(PRIMARY_IP, USER, PASS, ORIGINAL_PROD_VOL)
