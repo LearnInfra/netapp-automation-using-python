@@ -1,0 +1,59 @@
+import time
+import urllib3
+from netapp_ontap import HostConnection, config
+from netapp_ontap.resources import Volume
+
+# Suppress SSL warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+def migrate_volume(cluster_ip, user, password, svm_name, vol_name, dest_aggr):
+    conn = HostConnection(cluster_ip, username=user, password=password, verify=False)
+    config.CONNECTION = conn
+
+    with conn:
+        try:
+            # 1. Locate the volume
+            volume = Volume.find(name=vol_name, svm={"name": svm_name})
+            
+            print(f"📦 Starting migration of {vol_name} to {dest_aggr}...")
+
+            # 2. Trigger the move (Update the movement property)
+            volume.movement = {
+                "destination_aggregate": {"name": dest_aggr},
+                "state": "replicating" # This initiates the move
+            }
+            volume.patch()
+
+            # 3. Monitor the Migration Progress
+            while True:
+                volume.get(fields="movement")
+                move_state = volume.movement.state
+                
+                # Check for completion or errors
+                if move_state == "successful":
+                    print(f"✅ Migration Complete: {vol_name} is now on {dest_aggr}")
+                    break
+                elif move_state in ["failed", "cutover_wait_failed"]:
+                    print(f"❌ Migration Failed. Current state: {move_state}")
+                    break
+                else:
+                    # Optional: Check percentage if available in your ONTAP version
+                    print(f"--- Progress: Currently in '{move_state}' state... ---")
+                
+                time.sleep(30) # Check every 30 seconds
+
+        except Exception as e:
+            print(f"⚠️ Error during migration: {e}")
+
+if __name__ == "__main__":
+    # Cluster details
+    CLUSTER_IP = "192.168.1.50"
+    USER = "admin"
+    PASS = "NetApp123"
+    
+    # Migration Details
+    SVM = "vs_prod"
+    VOLUME = "vol_marketing_data"
+    NEW_AGGR = "aggr_ssd_02"
+
+    migrate_volume(CLUSTER_IP, USER, PASS, SVM, VOLUME, NEW_AGGR)
