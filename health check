@@ -1,0 +1,17 @@
+from netapp_ontap import HostConnection, config
+from netapp_ontap.resources import Cluster, Node, Aggregate
+import urllib3
+# Suppress SSL warnings for lab environments
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+def run_health_check(cluster_ip, user, password):    
+  # 1. Setup Connection    
+  conn = HostConnection(cluster_ip, username=user, password=password, verify=False)    
+  config.CONNECTION = conn    print(f"--- NetApp Health Report: {cluster_ip} ---")    
+  with conn:        
+    try:            
+      # 2. Check Cluster Identity & Version            
+      cluster = Cluster()            
+      cluster.get()            
+      print(f"[CLUSTER] Name: {cluster.name} | Version: {cluster.version.full}")            
+      # 3. Check Node Health            
+      print("\n[NODES]")            for node in Node.get_collection():                node.get()                status = "✅ Healthy" if node.state == "up" else "❌ Issues Detected"                print(f"- {node.name}: {status} (Model: {node.model})")            # 4. Check Aggregate Space/Health            print("\n[AGGREGATES]")            for aggr in Aggregate.get_collection():                aggr.get()                state = "✅ Online" if aggr.state == "online" else f"⚠️ {aggr.state}"                # Calculate used percentage                used_pct = (aggr.space.block_storage.used / aggr.space.block_storage.size) * 100                alert = "🚨 FULL" if used_pct > 90 else ""                print(f"- {aggr.name}: {state} | {used_pct:.1f}% Used {alert}")        except Exception as e:            print(f"Failed to retrieve health data: {e}")#if _name_ == "_main_":    # Replace with your Lab/Prod detailsrun_health_check("192.168.0.101", "admin", "Netapp1!")
