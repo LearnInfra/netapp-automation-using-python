@@ -1,0 +1,47 @@
+import urllib3
+from cryptography.fernet import Fernet
+import json
+from netapp_ontap import HostConnection, config
+from netapp_ontap.resources import Volume
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+def get_password(cluster_ip):
+    # Load the master key
+    with open("master.key", "rb") as key_file:
+        key = key_file.read()
+    
+    # Load and decrypt the credential file
+    f = Fernet(key)
+    with open("clusters.enc", "rb") as enc_file:
+        encrypted_data = enc_file.read()
+    
+    creds = json.loads(f.decrypt(encrypted_data).decode())
+    return creds.get(cluster_ip)
+
+def create_volume(cluster_ip, svm_name, vol_name, size_gb):
+    password = get_password(cluster_ip)
+    if not password:
+        print(f"No password found for {cluster_ip}")
+        return
+
+    conn = HostConnection(cluster_ip, username="admin", password=password, verify=False)
+    config.CONNECTION = conn
+
+    volume = Volume.from_dict({
+        'name': vol_name,
+        'svm': {'name': svm_name},
+        'aggregates': [{'name': 'aggr1'}], # Update to your aggr name
+        'size': size_gb * 1024 * 1024 * 1024, # Convert GB to Bytes
+        'style': 'flexvol'
+    })
+
+    try:
+        volume.post()
+        print(f"✅ Volume {vol_name} created successfully on {cluster_ip}")
+    except Exception as e:
+        print(f"❌ Error creating volume: {e}")
+
+if __name__ == "__main__":
+    # Usage
+    create_volume("192.168.1.50", "svm_prod", "vol_web_data", 100)
