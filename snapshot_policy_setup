@@ -1,0 +1,53 @@
+import urllib3
+from netapp_ontap import HostConnection, config
+from netapp_ontap.resources import SnapshotPolicy, Volume
+
+# Suppress SSL warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+def setup_snapshot_automation(cluster_ip, user, password, svm_name, policy_name, volume_list):
+    conn = HostConnection(cluster_ip, username=user, password=password, verify=False)
+    config.CONNECTION = conn
+
+    with conn:
+        # 1. Create the Snapshot Policy
+        # We define a policy that keeps 5 daily copies
+        policy = SnapshotPolicy(name=policy_name, svm={"name": svm_name})
+        policy.copies = [
+            {"count": 5, "schedule": {"name": "daily"}}
+        ]
+        policy.enabled = True
+
+        try:
+            policy.post()
+            print(f"✅ Policy '{policy_name}' created successfully.")
+        except Exception as e:
+            print(f"⚠️ Policy creation note: {e} (It may already exist)")
+
+        # 2. Apply Policy to Multiple Volumes
+        print(f"\n--- Applying policy to volumes in {svm_name} ---")
+        for vol_name in volume_list:
+            try:
+                # Find the volume
+                volume = Volume.find(name=vol_name, svm={"name": svm_name})
+                
+                # Update the snapshot_policy attribute
+                volume.snapshot_policy = {"name": policy_name}
+                volume.patch()
+                
+                print(f"🔗 Linked: {vol_name} -> {policy_name}")
+            except Exception as vol_error:
+                print(f"❌ Failed to update volume {vol_name}: {vol_error}")
+
+if __name__ == "__main__":
+    # Cluster details
+    CLUSTER_IP = "192.168.1.50"
+    USER = "admin"
+    PASS = "NetApp123"
+    
+    # Configuration
+    MY_SVM = "vs_prod"
+    MY_POLICY = "Daily_5_Retention"
+    VOLUMES_TO_PROTECT = ["vol_web_data", "vol_app_logs", "vol_db_binaries"]
+
+    setup_snapshot_automation(CLUSTER_IP, USER, PASS, MY_SVM, MY_POLICY, VOLUMES_TO_PROTECT)
