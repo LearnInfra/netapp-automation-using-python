@@ -1,0 +1,63 @@
+import urllib3
+from netapp_ontap import HostConnection, config
+from netapp_ontap.resources import SnapmirrorRelationship
+
+# Suppress SSL warnings for lab environments
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+def create_snapmirror(dest_ip, user, password, source_path, dest_path):
+    """
+    Connects to the DESTINATION cluster to create a SnapMirror relationship.
+    SnapMirror is always 'pulled' from the destination side.
+    """
+    conn = HostConnection(dest_ip, username=user, password=password, verify=False)
+    
+    with conn:
+        # Define the SnapMirror Relationship object
+        # Format for paths: "svm_name:volume_name"
+        snmp_obj = SnapmirrorRelationship()
+        snmp_obj.source_path = source_path
+        snmp_obj.destination_path = dest_path
+        snmp_obj.policy = "MirrorAllSnapshots"  # Standard Async policy
+        
+        try:
+            # 1. Create the relationship
+            snmp_obj.post()
+            print(f"✅ Created: {source_path} -> {dest_path} on {dest_ip}")
+            
+            # 2. Initialize the relationship (Start the first data transfer)
+            snmp_obj.patch(hydrate=True, initialize=True)
+            print(f"🚀 Initialization started for {dest_path}")
+            
+        except Exception as e:
+            print(f"❌ Failed on cluster {dest_ip}: {e}")
+
+if __name__ == "__main__":
+    # Define multiple replication tasks
+    # List of dicts: [ {destination_info}, {path_info} ]
+    replication_jobs = [
+        {
+            "dest_ip": "192.168.1.60", 
+            "src_path": "svm_prod:vol_web_data", 
+            "dst_path": "svm_dr:vol_web_data_dr"
+        },
+        {
+            "dest_ip": "192.168.1.70", 
+            "src_path": "svm_finance:vol_payroll", 
+            "dst_path": "svm_backup:vol_payroll_backup"
+        }
+    ]
+
+    # Credentials (Ideally use a vault/env variables)
+    user = "admin"
+    pwd = "YourSecurePassword"
+
+    # Loop through and execute
+    for job in replication_jobs:
+        create_snapmirror(
+            job["dest_ip"], 
+            user, 
+            pwd, 
+            job["src_path"], 
+            job["dst_path"]
+        )
