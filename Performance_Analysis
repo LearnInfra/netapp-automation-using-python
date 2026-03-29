@@ -1,0 +1,35 @@
+import urllib3
+from netapp_ontap import HostConnection, config
+from netapp_ontap.resources import Luns, Volume
+
+# Suppress SSL warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+def analyze_performance(cluster_ip, user, password):
+    conn = HostConnection(cluster_ip, username=user, password=password, verify=False)
+    config.CONNECTION = conn
+
+    with conn:
+        print(f"📊 Performance Analysis for Cluster: {cluster_ip}\n")
+
+        # 1. NAS Performance (Volumes)
+        print("--- NAS Performance (Volumes) ---")
+        # We request 'statistics' fields specifically
+        for vol in Volume.get_collection(fields="name,statistics"):
+            vol.get()
+            stats = vol.statistics
+            # Latency is usually in microseconds (μs), we convert to milliseconds (ms)
+            latency_ms = stats.latency_raw / 1000 if stats.latency_raw else 0
+            print(f"Vol: {vol.name:15} | IOPS: {stats.iops_raw:6} | Latency: {latency_ms:6.2f}ms | Throughput: {stats.throughput_raw / 1024 / 1024:6.2f} MB/s")
+
+        print("\n--- SAN Performance (LUNs) ---")
+        # 2. SAN Performance (LUNs)
+        for lun in Luns.get_collection(fields="name,statistics"):
+            lun.get()
+            stats = lun.statistics
+            latency_ms = stats.latency_raw / 1000 if stats.latency_raw else 0
+            print(f"LUN: {lun.name:15} | IOPS: {stats.iops_raw:6} | Latency: {latency_ms:6.2f}ms | Throughput: {stats.throughput_raw / 1024 / 1024:6.2f} MB/s")
+
+if __name__ == "__main__":
+    # Cluster Credentials
+    analyze_performance("192.168.1.50", "admin", "NetApp123")
