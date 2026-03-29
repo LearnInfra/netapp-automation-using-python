@@ -1,0 +1,57 @@
+import time
+import urllib3
+from netapp_ontap import HostConnection, config
+from netapp_ontap.resources import SnapmirrorRelationship
+
+# Suppress SSL warnings for lab environments
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+def run_dr_test_automation(cluster_ip, user, password, destination_path):
+    # 1. Setup Connection to the DR Cluster
+    conn = HostConnection(cluster_ip, username=user, password=password, verify=False)
+    config.CONNECTION = conn
+
+    with conn:
+        try:
+            # 2. Find the SnapMirror Relationship
+            # destination_path format: "svm_name:volume_name"
+            sm = SnapmirrorRelationship.find(destination_path=destination_path)
+            
+            print(f"🔄 Starting DR Test for: {destination_path}")
+
+            # 3. BREAK the relationship
+            # This stops replication and makes the DR volume Read-Write
+            print("🛑 Quiescing and Breaking SnapMirror...")
+            sm.patch(state="broken_off")
+            
+            # Wait for the state to transition
+            time.sleep(10)
+            print("✅ DR Volume is now Read-Write. You can now mount it to ESXi/Servers.")
+
+            # --- SIMULATED TEST WINDOW ---
+            # In a real pipeline, you could trigger an Ansible playbook here 
+            # to mount the volume and start your application VMs.
+            print("⏳ Simulating a 30-second testing window...")
+            time.sleep(30)
+            # -----------------------------
+
+            # 4. RESYNC the relationship
+            # This discards all test data and restarts replication from the Source
+            print("🔁 Resyncing SnapMirror to restore protection...")
+            sm.patch(state="mirrored")
+            
+            print(f"🏁 DR Test Complete. {destination_path} is back in 'Mirrored' state.")
+
+        except Exception as e:
+            print(f"❌ DR Test Failed: {e}")
+
+if __name__ == "__main__":
+    # DR Cluster Details (Where the destination volume resides)
+    DR_CLUSTER_IP = "192.168.1.60"
+    USER = "admin"
+    PASS = "NetApp123"
+    
+    # The DR volume you want to test
+    TARGET_DR_VOL = "vs_dr:vol_finance_dr"
+
+    run_dr_test_automation(DR_CLUSTER_IP, USER, PASS, TARGET_DR_VOL)
