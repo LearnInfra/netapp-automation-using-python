@@ -1,0 +1,54 @@
+import urllib3
+from netapp_ontap import HostConnection, config
+from netapp_ontap.resources import SnapmirrorRelationship
+
+# Suppress SSL warnings for lab environments
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+def setup_svm_migration(dr_cluster_ip, user, password, source_svm, dest_svm):
+    """
+    Creates an SVM-level SnapMirror relationship for migration/DR.
+    """
+    # Connection to the DESTINATION (DR) Cluster
+    conn = HostConnection(dr_cluster_ip, username=user, password=password, verify=False)
+    config.CONNECTION = conn
+
+    # Define the SVM SnapMirror Relationship
+    # Note: 'identity_preserve=True' ensures CIFS/NFS configs are copied
+    data = {
+        "source": {
+            "svm": {"name": source_svm}
+        },
+        "destination": {
+            "svm": {"name": dest_svm}
+        },
+        "policy": {"name": "MirrorAllSnapshots"}, # Default policy
+        "identity_preserve": True
+    }
+
+    relationship = SnapmirrorRelationship.from_dict(data)
+
+    try:
+        # 1. Create the relationship
+        relationship.post()
+        print(f"✅ SVM Relationship created: {source_svm} -> {dest_svm}")
+
+        # 2. Initialize the relationship (starts the baseline transfer)
+        # We need to refresh the object to get the UUID assigned by ONTAP
+        relationship.get()
+        relationship.patch(state="snapmirrored")
+        print(f"🚀 Initialization started for {dest_svm}. Check ONTAP for progress.")
+
+    except Exception as e:
+        print(f"❌ Migration Setup Failed: {e}")
+
+if __name__ == "__main__":
+    # Update with your cluster details
+    DR_CLUSTER = "192.168.1.60" 
+    ADMIN_USER = "admin"
+    ADMIN_PASS = "NetApp123" # Use the encrypted method from our previous chat for production!
+
+    SOURCE_SVM = "svm_prod"
+    DEST_SVM = "svm_dr"
+
+    setup_svm_migration(DR_CLUSTER, ADMIN_USER, ADMIN_PASS, SOURCE_SVM, DEST_SVM)
