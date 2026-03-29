@@ -1,0 +1,61 @@
+import urllib3
+from netapp_ontap import HostConnection, config
+from netapp_ontap.resources import Node, Disk, Cluster
+
+# Suppress SSL warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+def get_hardware_alerts(cluster_ip, user, password):
+    conn = HostConnection(cluster_ip, username=user, password=password, verify=False)
+    config.CONNECTION = conn
+    
+    alerts = []
+    
+    with conn:
+        try:
+            # 1. Check Node & Environmental Health (Fans, PSU, Temp)
+            for node in Node.get_collection(fields="status,name"):
+                node.get()
+                if node.status.state != "up":
+                    alerts.append(f"[NODE] {node.name} is {node.status.state}")
+            
+            # 2. Check for Failed or Broken Disks
+            # We filter for any disk that is NOT 'unassigned' or 'shared' or 'spare'
+            # Typically, we look for 'broken' or 'failed' states
+            for disk in Disk.get_collection(fields="state,name,node"):
+                disk.get()
+                if disk.state in ["broken", "failed", "maintenance"]:
+                    alerts.append(f"[DISK] {disk.name} on {disk.node.name} is {disk.state}")
+
+            # 3. Check Cluster-Wide Alarms
+            cluster = Cluster()
+            cluster.get()
+            # If the cluster is not in an 'ok' health state
+            if not cluster.status.is_healthy:
+                alerts.append(f"[CLUSTER] Global health status is NOT OK")
+
+        except Exception as e:
+            alerts.append(f"[CONN_ERROR] Could not connect to {cluster_ip}: {e}")
+            
+    return alerts
+
+if __name__ == "__main__":
+    # Your managed cluster list (using your common lab IPs)
+    target_clusters = ["192.168.1.50", "192.168.1.60", "192.168.1.100"]
+    
+    USER = "admin"
+    PASS = "NetApp123"
+
+    print("🔍 Starting NetApp Hardware Audit...\n")
+
+    for ip in target_clusters:
+        print(f"Checking {ip}...")
+        cluster_alerts = get_hardware_alerts(ip, USER, PASS)
+        
+        if not cluster_alerts:
+            print(f"  ✅ All Hardware Healthy\n")
+        else:
+            print(f"  🚨 ALERTS DETECTED:")
+            for alert in cluster_alerts:
+                print(f"    - {alert}")
+            print("\n")
