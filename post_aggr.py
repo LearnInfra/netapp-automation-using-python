@@ -1,0 +1,2 @@
+from netapp_ontap import HostConnectionfrom netapp_ontap.resources import Aggregate
+with HostConnection(    "<cluster-mgmt-ip>",    username="admin",    password="password",    verify=False):    resource = Aggregate()    resource.name = "aggr_data_01"    resource.node = {        "name": "node1"    }    resource.disks = {        "count": 10    }    resource.raid_type = "raid_dp"    resource.post(hydrate=True)    print(resource)
