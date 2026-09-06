@@ -1,0 +1,50 @@
+from netapp_ontap import config, HostConnection
+from netapp_ontap.resources import IpInterface
+from netapp_ontap.models import IpInterfaceIp
+
+# 1. Establish a connection to the NetApp cluster management LIF
+cluster_mgmt_ip = "192.168.1.50"
+username = "admin"
+password = "YourSecurePassword"
+
+# Initialize the global connection
+connection = HostConnection(
+    cluster_mgmt_ip,
+    username=username,
+    password=password,
+    verify=False  # Set to True if you use trusted SSL/TLS certificates
+)
+config.CONNECTION = connection
+
+# 2. Define the LIF configurations
+lif_payload = {
+    "name": "data_lif_nfs",               # Name of the LIF
+    "svm": {"name": "svm_data"},          # Target SVM (Storage Virtual Machine)
+    "location": {
+        "home_node": {"name": "node-01"}, # Home node for the interface
+        "home_port": {"name": "e0c"}      # Home port (physical/logical)
+    },
+    "ip": {
+        "address": "192.168.10.15",       # IP address for data communication
+        "netmask": "255.255.255.0"       # Subnet mask
+    },
+    "service_policy": {"name": "default-data-files"}, # Determines the LIF's protocols (NFS/SMB)
+    "enabled": True
+}
+
+# 3. Instantiate the IP Interface object and post it to the cluster
+try:
+    # Create the interface resource
+    new_lif = IpInterface(**lif_payload)
+    
+    # Execute the POST command to the API
+    response = new_lif.post()
+    
+    # Check if the operation was successful
+    if response.status_code == 201 or response.status_code == 202:
+        print(f"Successfully created LIF: {lif_payload['name']}")
+    else:
+        print(f"Failed to create LIF. Status Code: {response.status_code}")
+
+except Exception as e:
+    print(f"An error occurred: {e}")
